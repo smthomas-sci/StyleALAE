@@ -188,6 +188,7 @@ class ALAE(Model):
     def real_as_tensor(self, x_real):
         return tf.Variable(x_real, dtype=tf.float32)
 
+    @tf.function
     def train_step(self, batch):
         """
         Custom training step - follows algorithm of ALAE e.g. Step I,II & III
@@ -294,6 +295,7 @@ class ALAE(Model):
 
 def create_discriminator_training_step(model, batch_size):
 
+    @tf.function
     def discriminator_train_step(batch):
         # Step I - Update Discriminator  #
         # -------------------------------#
@@ -328,7 +330,7 @@ def create_discriminator_training_step(model, batch_size):
                 grads = r1_tape.gradient(pred, [x_real])[0]
 
                 # 3. Calculate the squared norm of the gradients
-                r1_penalty = K.sum(K.square(grads))
+                r1_penalty = tf.nn.compute_average_loss(K.sum(K.square(grads), axis=[1, 2, 3]))
                 loss_d += model.γ / 2 * r1_penalty
 
         gradients = tape.gradient(loss_d, model.θ_E + model.θ_D)
@@ -340,7 +342,7 @@ def create_discriminator_training_step(model, batch_size):
 
 
 def create_generator_training_step(model, batch_size):
-
+    @tf.function
     def generator_train_step(batch):
         # ----------------------------#
         #  Step II - Update Generator #
@@ -363,7 +365,7 @@ def create_generator_training_step(model, batch_size):
 
 
 def create_reciprocal_training_step(model, batch_size):
-
+    @tf.function
     def reciprocal_train_step(batch):
         # ------------------------------#
         #  Step III - Update Reciprocal #
@@ -391,7 +393,7 @@ def create_distributed_train_step(train_step, strategy):
     @tf.function
     def distributed_train_step(dataset_inputs):
         per_replica_losses = strategy.run(train_step, args=(dataset_inputs,))
-        return strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses, axis=None)
+        return strategy.reduce(tf.distribute.ReduceOp.MEAN, per_replica_losses, axis=None)
     return distributed_train_step
 
 

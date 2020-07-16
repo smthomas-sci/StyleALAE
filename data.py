@@ -48,9 +48,9 @@ def create_data_set(data_directory=None, file_names=None, img_dim=4, batch_size=
     n = len(file_names)
     ds = tf.data.Dataset.from_tensor_slices(file_names)
     ds = ds.shuffle(buffer_size=n)
-    ds = ds.map(parse_image, num_parallel_calls=AUTOTUNE)
-    ds = ds.batch(batch_size)
-    ds = ds.prefetch(buffer_size=AUTOTUNE)
+    ds = ds.map(parse_image) # num_parallel_calls=AUTOTUNE
+    ds = ds.batch(batch_size, drop_remainder=True)
+    ds = ds.prefetch(buffer_size=1) # buffer_size=AUTOTUNE
     return ds
 
 

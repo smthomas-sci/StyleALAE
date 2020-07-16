@@ -1,8 +1,12 @@
 """
 A simple training script
 
+
+Examples for filter size and batch size
+for each level can be found in the CONFIG
+files for ALAE as well as PINONEER (https://github.com/AaltoVision/pioneer/blob/master/src/train.py)
+
 """
-from keras.utils import Progbar
 
 import matplotlib.pyplot as plt
 import os

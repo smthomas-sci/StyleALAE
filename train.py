@@ -73,23 +73,23 @@ with strategy.scope():
 test_z = tf.random.normal((16, Z_DIM))
 test_batch = get_test_batch(data_gen)
 
-# TRAINING
-callbacks = [
-    Summary(log_dir=LOG_DIR,
-            write_graph=False,
-            update_freq=50,  # every n batches
-            test_z=test_z,
-            test_batch=test_batch,
-            img_dir=IMG_DIR,
-            n=16,
-            weight_dir=WEIGHT_DIR
-            )
-]
+# # TRAINING
+# callbacks = [
+#     Summary(log_dir=LOG_DIR,
+#             write_graph=False,
+#             update_freq=50,  # every n batches
+#             test_z=test_z,
+#             test_batch=test_batch,
+#             img_dir=IMG_DIR,
+#             n=16,
+#             weight_dir=WEIGHT_DIR
+#             )
+# ]
 
 history = alae.fit(x=data_gen,
                    steps_per_epoch=N,
                    epochs=EPOCHS,
-                   callbacks=callbacks
+                   #callbacks=callbacks
                    )
 
 
