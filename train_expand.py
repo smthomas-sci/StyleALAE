@@ -26,6 +26,10 @@ from StyleALAE.utils import Summary
 import logging
 tf.get_logger().setLevel(logging.ERROR)
 
+# USE TO TRACK MEMORY USAGE FOR DETERMINING BATCH SIZE
+gpu = tf.config.experimental.list_physical_devices("GPU")[0]
+tf.config.experimental.set_memory_growth(gpu, True)
+# ----------------------------------------------------------- #
 
 # PARAMETERS
 LEVELS = 6  # > 1
@@ -38,7 +42,7 @@ BASE_FEATURES = 128
 BATCH_SIZE = 32
 ALPHA_STEP = None
 DATA_DIR = "/home/simon/PycharmProjects/StyleALAE/data/celeba-128"
-RUN_NAME = f"{X_DIM}x{X_DIM}_1"  #{np.random.randint(1, 100)}"
+RUN_NAME = f"{X_DIM}x{X_DIM}_1"
 LOG_DIR = "/home/simon/PycharmProjects/StyleALAE/logs/" + RUN_NAME
 IMG_DIR = "/home/simon/PycharmProjects/StyleALAE/output/" + RUN_NAME
 WEIGHT_DIR = "/home/simon/PycharmProjects/StyleALAE/weights/" + RUN_NAME
