@@ -1,10 +1,16 @@
 """
-A simple training script
-
+A simple training script for expanding the network
 
 Examples for filter size and batch size
 for each level can be found in the CONFIG
 files for ALAE as well as PINONEER (https://github.com/AaltoVision/pioneer/blob/master/src/train.py)
+
+#                    4       8       16       32       64       128        256       512       1024
+  LOD_2_BATCH_8GPU: [512,    256,     128,      64,      32,       32,        32,       32,        24]
+  LOD_2_BATCH_4GPU: [512,    256,     128,      64,      32,       32,        32,       32,        16]
+  LOD_2_BATCH_2GPU: [128,    128,     128,      64,      32,       32,        16]
+  LOD_2_BATCH_1GPU: [128,    128,     128,      64,      32,       16]
+
 
 """
 
@@ -39,8 +45,8 @@ WEIGHT_DIR = "/home/simon/PycharmProjects/StyleALAE/weights/" + RUN_NAME
 OLD_WEIGHT_DIR = f"/home/simon/PycharmProjects/StyleALAE/weights/{X_DIM//2}x{X_DIM//2}_1"
 N = None
 
-
 FILTERS = {
+    # E_in | E/G Filters
     1: [128, 128],
     2: [64, 128],
     3: [64, 64],
@@ -82,7 +88,7 @@ with strategy.scope():
             D.load_weights(os.path.join(OLD_WEIGHT_DIR, f"D_{DIM}x{DIM}_weights_16.h5"))
 
         G, G_m = expand_generator(old_model=G, block=b,
-                                  filters=FILTERS[b][0], z_dim=Z_DIM,
+                                  filters=FILTERS[b][1], z_dim=Z_DIM,
                                   noise_dim=2**(b+1), block_type="AdaIN")
 
         E, E_m = expand_encoder(old_model=E,
