@@ -2,7 +2,6 @@
 A simple training script
 
 """
-from keras.utils import Progbar
 
 import matplotlib.pyplot as plt
 import os
@@ -12,6 +11,9 @@ from StyleALAE.models import *
 from StyleALAE.optimizers import *
 from StyleALAE.data import *
 from StyleALAE.utils import Summary
+
+
+
 
 # PARAMETERS
 X_DIM = 4

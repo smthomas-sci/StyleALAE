@@ -51,26 +51,28 @@ def crop_noise(noise_tensor, size, block):
 class DenseEQ(Dense):
     """
     Standard dense layer but includes learning rate equilization
-    at runtime as per Karras et al. 2017.
+    at runtime as per Karras et al. 2017. Includes learning rate multiplier,
+    but defaults to 1.0. Only needed for the mapping network.
 
     Inherits Dense layer and overides the call method.
     """
-    def __init__(self, **kwargs):
+    def __init__(self, lrmul=1.0, **kwargs):
         if 'kernel_initializer' in kwargs:
             raise Exception("Cannot override kernel_initializer")
-        super().__init__(kernel_initializer=normal(0, 1), **kwargs)
+        self.lrmul=lrmul
+        super().__init__(kernel_initializer=normal(0, 1/self.lrmul), **kwargs)
 
     def build(self, input_shape):
         super().build(input_shape)
         # The number of inputs
         n = np.product([int(val) for val in input_shape[1:]])
         # He initialisation constant
-        self.c = np.sqrt(2/n)
+        self.c = np.sqrt(2/n)*self.lrmul
 
     def call(self, inputs):
         output = K.dot(inputs, self.kernel*self.c) # scale kernel
         if self.use_bias:
-            output = K.bias_add(output, self.bias, data_format='channels_last')
+            output = K.bias_add(output, self.bias*self.lrmul, data_format='channels_last')
         if self.activation is not None:
             output = self.activation(output)
         return output

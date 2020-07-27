@@ -34,8 +34,8 @@ def create_data_set(data_directory=None, file_names=None, img_dim=4, batch_size=
     def parse_image(filename):
         """
         Reads the image and returns the image, noise and constant tensors
-        :param filename: -
-        :return:
+        :param filename: the image to load
+        :return: style batch - ( image, noise_img, constant)
         """
         image = tf.io.read_file(filename)
         image = tf.image.decode_jpeg(image)
@@ -46,11 +46,12 @@ def create_data_set(data_directory=None, file_names=None, img_dim=4, batch_size=
         return image, noise_image, constant
 
     n = len(file_names)
+    seed = tf.constant([1234], dtype=tf.int64)
     ds = tf.data.Dataset.from_tensor_slices(file_names)
-    ds = ds.shuffle(buffer_size=n)
-    ds = ds.map(parse_image) # num_parallel_calls=AUTOTUNE
+    ds = ds.shuffle(buffer_size=n, seed=1234, reshuffle_each_iteration=True)
+    ds = ds.map(parse_image, num_parallel_calls=AUTOTUNE)
     ds = ds.batch(batch_size, drop_remainder=True)
-    ds = ds.prefetch(buffer_size=1) # buffer_size=AUTOTUNE
+    ds = ds.prefetch(buffer_size=AUTOTUNE)
     return ds
 
 

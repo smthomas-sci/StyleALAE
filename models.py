@@ -9,17 +9,18 @@ from StyleALAE.layers import *
 from StyleALAE.losses import *
 
 
-def build_F(n_layers, z_dim):
+def build_F(n_layers, z_dim, lrmul=0.01):
     """
     Builds the F network, mapping z to w.
     :param n_layers: the number of layers in the network
     :param z_dim: the size of the layers
+    :param lrmul: the learning rate multiplier (2 order of magnitude as per StyleGAN 2)
     :return: F model
     """
     F_input = Input(shape=(z_dim,))
     x = F_input
     for i in range(n_layers):
-        x = DenseEQ(units=z_dim, name=f"F_dense_{i+1}")(x)
+        x = DenseEQ(units=z_dim, name=f"F_dense_{i+1}", lrmul=lrmul)(x)
         x = LeakyReLU(0.2, name=f"F_act_{i+1}")(x)
     F_output = x
     F = Model(inputs=[F_input], outputs=[F_output], name="F")

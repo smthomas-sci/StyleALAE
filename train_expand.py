@@ -5,12 +5,12 @@ Examples for filter size and batch size
 for each level can be found in the CONFIG
 files for ALAE as well as PINONEER (https://github.com/AaltoVision/pioneer/blob/master/src/train.py)
 
-#                    4       8       16       32       64       128        256       512       1024
+# Level                1       2        3        4        5         6          7         8          9
+# Dim                  4       8       16       32       64       128        256       512       1024
   LOD_2_BATCH_8GPU: [512,    256,     128,      64,      32,       32,        32,       32,        24]
   LOD_2_BATCH_4GPU: [512,    256,     128,      64,      32,       32,        32,       32,        16]
   LOD_2_BATCH_2GPU: [128,    128,     128,      64,      32,       32,        16]
   LOD_2_BATCH_1GPU: [128,    128,     128,      64,      32,       16]
-
 
 """
 

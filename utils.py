@@ -10,8 +10,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import skimage.io as io
-from skimage.transform import resize
+import yaml
 
+from skimage.transform import resize
 from scipy.linalg import sqrtm
 
 from tensorflow.keras.callbacks import TensorBoard
@@ -57,6 +58,7 @@ class Summary(TensorBoard):
         samples = np.clip(samples, 0, 1)
         recons = np.clip(recons, 0, 1)
 
+        dim = test_batch[0].shape[1]
         # Show progress
         fig, ax = plt.subplots(3, n, figsize=(n, 3))
         for i in range(n):
@@ -70,10 +72,7 @@ class Summary(TensorBoard):
         plt.text(-0.8, 0.4, "Orig.", transform=ax[0, 0].transAxes)
         plt.text(-1, 0.4, "Recon.", transform=ax[1, 0].transAxes)
         plt.text(-1.1, 0.4, "Sample", transform=ax[2, 0].transAxes)
-
-        plt.text(0, 1.2, f"{epoch:04d}", transform=ax[0, 0].transAxes)
-
-        dim = test_batch[0].shape[1]
+        plt.text(0, 1.2, f"{dim}x{dim}: {epoch:04d}", transform=ax[0, 0].transAxes)
 
         if self.model.merge:
             suffix = "_merge"
@@ -93,23 +92,34 @@ class Summary(TensorBoard):
 
         # Save weights and losses
         DIM = self.model.x_dim
-        self.model.G.save_weights(f"{self.weight_dir}/G_{DIM}x{DIM}{suffix}_{epoch}" + ".h5")
-        self.model.E.save_weights(f"{self.weight_dir}/E_{DIM}x{DIM}{suffix}_{epoch}" + ".h5")
-        self.model.F.save_weights(f"{self.weight_dir}/F_{DIM}x{DIM}{suffix}_{epoch}" + ".h5")
-        self.model.D.save_weights(f"{self.weight_dir}/D_{DIM}x{DIM}{suffix}_{epoch}" + ".h5")
+        self.model.G.save_weights(f"{self.weight_dir}/G_{DIM}x{DIM}{suffix}" + ".h5")
+        self.model.E.save_weights(f"{self.weight_dir}/E_{DIM}x{DIM}{suffix}" + ".h5")
+        self.model.F.save_weights(f"{self.weight_dir}/F_{DIM}x{DIM}{suffix}" + ".h5")
+        self.model.D.save_weights(f"{self.weight_dir}/D_{DIM}x{DIM}{suffix}" + ".h5")
         print("Weights Saved.")
 
 
-def _generator(path, stop):
-    files = [os.path.join(path, file) for file in os.listdir(path)][0:stop]
+# EXPONENTIAL MOVING AVERAGE
+# https://gist.github.com/soheilb/c5bf0ba7197caa095acfcb69744df756
+
+
+def _generator(path, k):
+    """
+    Helper for FID scorer.
+    :param path: path to files
+    :param k: how many images to include
+    :return:
+    """
+    files = [os.path.join(path, file) for file in os.listdir(path)][0:k]
     i = 0
-    while i < stop:
+    while i < k:
         i += 1
         file = files[i - 1]
         img = io.imread(file)
         img = resize(img, (229, 299), preserve_range=True).astype('float32')
         img = preprocess_input(img)
         yield np.expand_dims(img, 0)
+
 
 class FID(object):
     """
@@ -140,8 +150,8 @@ class FID(object):
         :param baseline:
         """
         self.k = k
-        self.real_gen = _generator(path=real_path, stop=self.k)
-        self.fake_gen = _generator(path=fake_path, stop=self.k)
+        self.real_gen = _generator(path=real_path, k=self.k)
+        self.fake_gen = _generator(path=fake_path, k=self.k)
         self.model = InceptionV3(include_top=False,
                                 weights="imagenet",
                                 input_shape=(299, 299, 3),
@@ -182,30 +192,49 @@ class FID(object):
         return self.calculate_fid(self.real, self.fake)
 
 
+class ConfigParser(object):
+    def __init__(self, config_file):
+        """
+        Parse the YAML config file for the run. All the keys
+        :param config_file: path and name of config file
+        """
+        self._config = yaml.load(open(config_file, 'r').read(),
+                                         Loader=yaml.FullLoader)
+        # Add attributes
+        for key in self._config:
+            setattr(self, key, self._config[key])
+
+    def __dir__(self):
+        return list(self._config.keys())
+
+
 if __name__ == "__main__":
-    import timeit
-    # start timer
-    start = timeit.default_timer()
+    # import timeit
+    # # start timer
+    # start = timeit.default_timer()
+    #
+    # REAL_DIR = "/home/simon/PycharmProjects/StyleALAE/data/celeba-128"
+    # FAKE_DIR = "/home/simon/Documents/Programming/Data/HistoPatches/Validation_256_labelled/"
+    #
+    # fid = FID(real_path=REAL_DIR, fake_path=FAKE_DIR, k=100)
+    #
+    # # Predict real features and calculate baseline
+    # fid.get_real_features()
+    #
+    # # Predict fake features and then calculate fid
+    # fid.get_fake_features()
+    #
+    # score = fid.score()
+    # print("FID:", score)
+    #
+    # # End of timer
+    # stop = timeit.default_timer()
+    #
+    # print('Time: ', stop - start)
 
-    REAL_DIR = "/home/simon/PycharmProjects/StyleALAE/data/celeba-128"
-    FAKE_DIR = "/home/simon/Documents/Programming/Data/HistoPatches/Validation_256_labelled/"
-
-    fid = FID(real_path=REAL_DIR, fake_path=FAKE_DIR, k=100)
-
-    # Predict real features and calculate baseline
-    fid.get_real_features()
-
-    # Predict fake features and then calculate fid
-    fid.get_fake_features()
-
-    score = fid.score()
-    print("FID:", score)
-
-    # End of timer
-    stop = timeit.default_timer()
-
-    print('Time: ', stop - start)
-
+    fname = "/home/simon/PycharmProjects/StyleALAE/StyleALAE/configs/celeba_hq_256.config"
+    config = ConfigParser(fname)
+    print(dir(config))
 
 
 
