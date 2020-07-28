@@ -16,7 +16,7 @@ import datetime
 from StyleALAE.models import *
 from StyleALAE.optimizers import *
 from StyleALAE.data import *
-from StyleALAE.utils import ConfigParser, Summary
+from StyleALAE.utils import *
 
 # ------------------------------------------ ARGUMENT PARSER --------------------------------------------------------- #
 parser = argparse.ArgumentParser(description='Train progressive StyleALAE')
@@ -31,24 +31,25 @@ args = parser.parse_args()
 config = ConfigParser(args.config)
 
 # MODEL HYPER-PARAMETERS
-X_DIM = 4  # NOTE: Always start from 4x4
-Z_DIM = config.z_dim  # The size of the latent vector
-F_N_LAYERS = config.F_layers  # The number of layers in the F (mapping) network
-D_N_LAYERS = config.D_layers  # The number of layers in the D (discriminator) network
-BASE_FEATURES = config.base_features  # The number of features in the 4x4 base feature space
-LEVELS = config.levels  # The number of levels in training e.g. len([4, 8, 16, 32, 64]) == 5
-BATCH_SIZES = config.batch_sizes  # The batch size for each level
-ALPHA = config.alpha  # The learning rate - recommend 0.0015-0.003
-GAMMAS = config.gammas  # The Gradient-Penalty gamma values for each level [0.1, 0.1, 10, ...]
-FILTERS = config.filters  # The convolutional filters for each level
-N = config.n  # The number of images in data set
-K_IMAGES = config.k_images  # The number of images to train per level (500K-800K)
-EPOCHS = int(K_IMAGES / N)  # The number of epochs to train to reach K_IMAGES
-BLOCK_TYPE = config.block_type  # Block use "AdaIn" or "ModDemod"
+X_DIM = 4                                # NOTE: Always start from 4x4
+Z_DIM = config.z_dim                     # The size of the latent vector
+F_N_LAYERS = config.F_layers             # The number of layers in the F (mapping) network
+D_N_LAYERS = config.D_layers             # The number of layers in the D (discriminator) network
+BASE_FEATURES = config.base_features     # The number of features in the 4x4 base feature space
+LEVELS = config.levels                   # The number of levels in training e.g. len([4, 8, 16, 32, 64]) == 5
+BATCH_SIZES = config.batch_sizes         # The batch size for each level
+ALPHA = config.alpha                     # The learning rate - recommend 0.0015-0.003
+GAMMAS = config.gammas                   # The Gradient-Penalty gamma values for each level [0.1, 0.1, 10, ...]
+FILTERS = config.filters                 # The convolutional filters for each level
+N = config.n                             # The number of images in data set
+K_IMAGES = config.k_images               # The number of images to train per level (500K-800K)
+EPOCHS = int(K_IMAGES / N)               # The number of epochs to train to reach K_IMAGES
+BLOCK_TYPE = config.block_type           # Block use "AdaIn" or "ModDemod"
+RESUME_LEVEL = config.resume_level       # The level to resume training at. (None = Train from scratch)
 
 # INPUT & OUTPUT
-DATA_DIR = config.data_dir  # The data directory containing only png/jpg/tif files
-RUN_DIR = config.run_dir  # The directory containing all output for particular run
+DATA_DIR = config.data_dir               # The data directory containing only png/jpg/tif files
+RUN_DIR = config.run_dir                 # The directory containing all output for particular run
 LOG_DIR = os.path.join(RUN_DIR, "logs/")
 OUT_DIR = os.path.join(RUN_DIR, "output/")
 WEIGHT_DIR = os.path.join(RUN_DIR, "weights/")
@@ -59,10 +60,10 @@ for PATH in [RUN_DIR, LOG_DIR, OUT_DIR, WEIGHT_DIR, FID_DIR]:
     if not os.path.exists(PATH):
         os.mkdir(PATH)
         print(f"Creating dir: {PATH}")
-        if "fid" in PATH:
+        if PATH == "fid":
             os.mkdir(os.path.join(PATH, "real/"))
             os.mkdir(os.path.join(PATH, "fake/"))
-        else:
+        elif PATH != RUN_DIR:
             # create run folders for each level
             for level in range(1, LEVELS + 1):
                 dim = 2 ** (level + 1)
@@ -146,6 +147,13 @@ for level in range(1, LEVELS + 1):
                                     filters=FILTERS[b],
                                     block=b,
                                     z_dim=Z_DIM)
+
+        # RESUME TRAINING AT THIS LEVEL?
+        if RESUME_LEVEL:
+            if level < RESUME_LEVEL:
+                print(f"...skipping training at level {level} - {X_DIM}x{X_DIM}")
+                continue
+
         # Expansion finished
         # Build merge model
         alae_m = ALAE(x_dim=X_DIM,
@@ -187,40 +195,33 @@ for level in range(1, LEVELS + 1):
 
     # Train models
     for m, alae in enumerate(models):
+        # BASE
         if len(models) == 1:
+            m = ""
             print("training base model")
-            # CALL BACK
-            callbacks = [
-                Summary(log_dir=os.path.join(LOG_DIR, f"{X_DIM}x{X_DIM}/"),
-                        write_graph=False,
-                        update_freq=50,  # every n batches
-                        test_z=test_z,
-                        test_batch=test_batch,
-                        img_dir=os.path.join(OUT_DIR, f"{X_DIM}x{X_DIM}/"),
-                        n=16,
-                        weight_dir=os.path.join(WEIGHT_DIR, f"{X_DIM}x{X_DIM}/"),
-                        )
-            ]
-
         # MERGE + STRAIGHT
-        if len(models) == 2:
+        elif len(models) == 2:
             m = "straight" if m else "merge"
             print(f"training {m} model")
 
-            # TRAINING
-            callbacks = [
-                Summary(log_dir=os.path.join(LOG_DIR, f"{X_DIM}x{X_DIM}/{m}"),
-                        write_graph=False,
-                        update_freq=50,  # every n batches
-                        test_z=test_z,
-                        test_batch=test_batch,
-                        img_dir=os.path.join(OUT_DIR, f"{X_DIM}x{X_DIM}/"),
-                        n=16,
-                        weight_dir=os.path.join(WEIGHT_DIR, f"{X_DIM}x{X_DIM}/"),
-                        )
-            ]
+        callbacks = [
+            Summary(log_dir=os.path.join(LOG_DIR, f"{X_DIM}x{X_DIM}/{m}"),
+                    write_graph=False,
+                    update_freq=50,  # every n batches
+                    test_z=test_z,
+                    test_batch=test_batch,
+                    img_dir=os.path.join(OUT_DIR, f"{X_DIM}x{X_DIM}/"),
+                    n=16,
+                    weight_dir=os.path.join(WEIGHT_DIR, f"{X_DIM}x{X_DIM}/"),
+                    )
+        ]
 
-        # FIT
+        # Calculate running average of weights for final straight model
+        if m == "straight" and level == LEVELS:
+            callbacks.append(
+                ExponentialMovingAverage(weight_dir=WEIGHT_DIR, fid_dir=FID_DIR)
+            )
+
         alae.fit(x=data_gen,
                  steps_per_epoch=N // BATCH_SIZES[level-1],
                  epochs=EPOCHS,
