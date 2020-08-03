@@ -56,9 +56,8 @@ class FID(object):
 
     1. Save k real images to disk
     2. Run real images through InceptionV3 and create baseline score / save features
-       >>> fid = FID(real_path=REAL_DIR, fake_path=FAKE_DIR, k=10000, baseline=None)
+       >>> fid = FID(real_path=REAL_DIR, fake_path=FAKE_DIR, k=10000)
        >>> fid.get_real_features()
-       >>> fid.create_baseline()
        >>> fid.save_real_features(fname)
     4. For each epoch at this image level e.g. 64x64, save k fake images to disk
        >>> fid.get_fake_features()
@@ -70,7 +69,6 @@ class FID(object):
         :param real_path: the path to directory of real images
         :param fake_path: the path to directory of fake images
         :param k: how many images to use to calculate score
-        :param baseline:
         """
         self.k = k
         self.real_gen = _generator(path=real_path, k=self.k)

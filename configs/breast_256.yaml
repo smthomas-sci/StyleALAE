@@ -1,0 +1,26 @@
+# CONFIG FILE FOR celeba_hq_256
+
+# MODEL HYPER-PARAMETERS
+# filters is ordered such that [ E_in , E/G Filters]
+levels: 6
+resume_level: NULL
+filters: { 1: [ 256, 512 ],
+           2: [ 128, 256 ],
+           3: [ 64,  128 ],
+           4: [ 32,   64 ],
+           5: [ 16,   32 ],
+           6: [ 16,   16 ] }
+block_type: "AdaIn"
+alpha: 0.0015
+z_dim: 200
+F_layers: 8
+D_layers: 3
+base_features: 128
+batch_sizes: [ 128, 128, 128, 64, 32, 16 ]
+gammas: [ 0.1, 0.1, 0.1, 0.1, 0.1, 0.1 ]
+n: 10_776
+k_images: 500_000
+
+# I/O
+data_dir: "/home/simon/PycharmProjects/StyleALAE/data/celeba-128"
+run_dir: "/home/simon/PycharmProjects/StyleALAE/CelebaA_256_run_1/"

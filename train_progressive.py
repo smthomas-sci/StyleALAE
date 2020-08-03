@@ -22,7 +22,7 @@ from StyleALAE.utils import *
 parser = argparse.ArgumentParser(description='Train progressive StyleALAE')
 parser.add_argument('--config',
                     type=str,
-                    default="/home/simon/PycharmProjects/StyleALAE/StyleALAE/configs/celeba_hq_256.config",
+                    default="/home/simon/PycharmProjects/StyleALAE/StyleALAE/configs/celeba_hq_256.yaml",
                     help='full path and filename to yaml config file')
 args = parser.parse_args()
 # -------------------------------------------------------------------------------------------------------------------- #

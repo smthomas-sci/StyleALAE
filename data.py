@@ -146,7 +146,7 @@ class DataGenerator(Sequence):
                 # Input Image
                 batch,
                 # Noise Image
-                np.random.normal(0, 1, (self.batch_size, self.target_dim, self.target_dim, 1)),
+                np.random.normal(0, 0.1, (self.batch_size, self.target_dim, self.target_dim, 1)),
 
                 # Constant input
                 np.ones((self.batch_size, 1, 1))

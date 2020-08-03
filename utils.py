@@ -179,7 +179,7 @@ class ConfigParser(object):
 
 if __name__ == "__main__":
 
-    fname = "/home/simon/PycharmProjects/StyleALAE/StyleALAE/configs/celeba_hq_256.config"
+    fname = "/home/simon/PycharmProjects/StyleALAE/StyleALAE/configs/celeba_hq_256.yaml"
     config = ConfigParser(fname)
     print(dir(config))
 
