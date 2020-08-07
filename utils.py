@@ -71,7 +71,11 @@ class Summary(TensorBoard):
         plt.text(-0.8, 0.4, "Orig.", transform=ax[0, 0].transAxes)
         plt.text(-1, 0.4, "Recon.", transform=ax[1, 0].transAxes)
         plt.text(-1.1, 0.4, "Sample", transform=ax[2, 0].transAxes)
-        plt.text(0, 1.2, f"{dim}x{dim}: {epoch:04d}", transform=ax[0, 0].transAxes)
+        if self.model.merge:
+            m = f" - alpha: {self.model.alpha:.3}"
+        else:
+            m = ""
+        plt.text(0, 1.2, f"{dim}x{dim}: {epoch:04d}{m}", transform=ax[0, 0].transAxes)
 
         if self.model.merge:
             suffix = "_merge"

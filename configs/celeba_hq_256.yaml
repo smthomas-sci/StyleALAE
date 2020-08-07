@@ -4,8 +4,8 @@
 # filters is ordered such that [ E_in , E/G Filters]
 levels: 6
 resume_level: NULL
-filters: { 1: [ 128, 128 ],
-           2: [ 64, 128 ],
+filters: { 1: [ 64, 64 ],
+           2: [ 64, 64 ],
            3: [ 64, 64 ],
            4: [ 32, 64 ],
            5: [ 16, 32 ],

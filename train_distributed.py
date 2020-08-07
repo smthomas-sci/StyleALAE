@@ -5,8 +5,15 @@ A simple training script
 Multi-GPU
 -  https://blog.paperspace.com/tensorflow-2-0-in-practice/
 - https://stackoverflow.com/questions/62349329/distributed-training-using-mirrorstrategy-in-tensorflow-2-2-with-custom-training
+- https://www.tensorflow.org/tutorials/distribute/custom_training
+
 
 """
+
+import sys
+
+sys.path.append("..")
+
 from keras.utils import Progbar
 
 import matplotlib.pyplot as plt
@@ -26,17 +33,30 @@ D_N_LAYERS = 3
 BASE_FEATURES = 128
 BATCH_SIZE = 128
 ALPHA_STEP = None
-DATA_DIR = "/home/simon/PycharmProjects/StyleALAE/data/celeba-128"
-RUN_NAME = f"{X_DIM}x{X_DIM}_1"  #{np.random.randint(1, 100)}"
-LOG_DIR = "/home/simon/PycharmProjects/StyleALAE/logs/" + RUN_NAME
-IMG_DIR = "/home/simon/PycharmProjects/StyleALAE/output/" + RUN_NAME
-WEIGHT_DIR = "/home/simon/PycharmProjects/StyleALAE/weights/" + RUN_NAME
+# DATA_DIR = "/home/simon/PycharmProjects/StyleALAE/data/celeba-128"
+# RUN_NAME = f"{X_DIM}x{X_DIM}_1"  #{np.random.randint(1, 100)}"
+# LOG_DIR = "/home/simon/PycharmProjects/StyleALAE/logs/" + RUN_NAME
+# IMG_DIR = "/home/simon/PycharmProjects/StyleALAE/output/" + RUN_NAME
+# WEIGHT_DIR = "/home/simon/PycharmProjects/StyleALAE/weights/" + RUN_NAME
+DATA_DIR = "/home/Student/s4200058/Dermo/celeba-256/"
+RUN_NAME = f"{X_DIM}x{X_DIM}_1"
+LOG_DIR = "/home/Student/s4200058/Dermo/logs/" + RUN_NAME
+IMG_DIR = "/home/Student/s4200058/Dermo/output/" + RUN_NAME
+WEIGHT_DIR = "/home/Student/s4200058/Dermo/weights/" + RUN_NAME
+
 N = None
 
 # PRE-RUN CHECKS
 for PATH in [LOG_DIR, IMG_DIR, WEIGHT_DIR]:
     if not os.path.exists(PATH):
         os.mkdir(PATH)
+
+# DATA
+data_gen = create_data_set(data_directory=DATA_DIR, img_dim=4, batch_size=128)
+if not N:  # this may be known in advance
+    N = sum(1 for _ in data_gen)
+
+EPOCHS = int(500000/(N*BATCH_SIZE)+1)
 
 
 
@@ -70,126 +90,108 @@ with strategy.scope():
                  γ=0.1,
                  alpha_step=None)
 
-
-    @tf.function
-    def discriminator_train_step(batch):
-        # Step I - Update Discriminator  #
-        # -------------------------------#
-
-        # Random mini-batch from data set
-        x_real, noise, constant = batch
-
-        # samples from prior N(0, 1)
-        z = K.random_normal((BATCH_SIZE, alae.z_dim))
-        # generate fake images
-        x_fake = alae.generator([z, noise, constant])
-
-        # Compute loss and apply gradients
-        with tf.GradientTape() as tape:
-
-            fake_pred = alae.discriminator(x_fake)
-
-            real_pred = alae.discriminator(x_real)
-
-            loss_d = discriminator_logistic_non_saturating(real_pred, fake_pred)
-
-            # Add the R1 term
-            if alae.γ > 0:
-
-                x_real = alae.real_as_tensor(x_real) #tf.Variable(x_real, dtype=tf.float32)
-                with tf.GradientTape() as r1_tape:
-                    r1_tape.watch(x_real)
-                    # 1. Get the discriminator output for real images
-                    pred = alae.discriminator(x_real)
-
-                # 2. Calculate the gradients w.r.t to the real images.
-                grads = r1_tape.gradient(pred, [x_real])[0]
-
-                # 3. Calculate the squared norm of the gradients
-                r1_penalty = tf.nn.compute_average_loss(K.sum(K.square(grads), axis=[1, 2, 3]))
-                loss_d += alae.γ / 2 * r1_penalty
-
-        gradients = tape.gradient(loss_d, alae.θ_E + alae.θ_D)
-        alae.optimizer_d.apply_gradients(zip(gradients, alae.θ_E + alae.θ_D))
-
-        return loss_d
+    loss_object = tf.keras.losses.BinaryCrossentropy(
+        from_logits=True,
+        reduction=tf.keras.losses.Reduction.NONE)
 
 
-    @tf.function
-    def generator_train_step(batch):
-        # ----------------------------#
-        #  Step II - Update Generator #
-        # ----------------------------#
-        x_real, noise, constant = batch
-        # samples from prior N(0, 1)
-        z = K.random_normal((BATCH_SIZE, alae.z_dim))
-        # Compute loss and apply gradients
-        with tf.GradientTape() as tape:
-            fake_pred = alae.discriminator(alae.generator([z, noise, constant]))
+def train_step(inputs):
+    batch = inputs
+    batch_size = batch[0].shape[0]
 
-            loss_g = generator_logistic_non_saturating(fake_pred)
+    if not batch_size:
+        batch_size = 1
 
-        gradients = tape.gradient(loss_g, alae.θ_F + alae.θ_G)
-        alae.optimizer_g.apply_gradients(zip(gradients, alae.θ_F + alae.θ_G))
+    # Update alphas on Fade
+    if alae.merge:
+        alae.alpha += alae.alpha_step
+        alae.G.get_layer("Fade_G").alpha.assign(alae.alpha)
+        alae.E.get_layer("Fade_E").alpha.assign(alae.alpha)
+        alae.E.get_layer("Fade_E_w").alpha.assign(alae.alpha)
 
-        return loss_g
+    # -------------------------------#
+    # Step I - Update Discriminator  #
+    # -------------------------------#
 
+    # Random mini-batch from data set
+    x_real, noise, constant = batch
 
-    @tf.function
-    def reciprocal_train_step(batch):
-        # ------------------------------#
-        #  Step III - Update Reciprocal #
-        # ------------------------------#
-        x_real, noise, constant = batch
-        # samples from prior N(0, 1)
-        z = K.random_normal((BATCH_SIZE, alae.z_dim))
-        # Get w
-        w = alae.F(z)
-        # Compute loss and apply gradients
-        with tf.GradientTape() as tape:
-            w_pred = alae.reciprocal([w, noise, constant])
+    # samples from prior N(0, 1)
+    z = K.random_normal((batch_size, alae.z_dim))
+    # generate fake images
+    x_fake = alae.generator([z, noise, constant])
 
-            loss_r = l2(w, w_pred)
+    # Compute loss and apply gradients
+    with tf.GradientTape() as tape:
 
-        gradients = tape.gradient(loss_r, alae.θ_G + alae.θ_E)
-        alae.optimizer_r.apply_gradients(zip(gradients, alae.θ_G + alae.θ_E))
+        fake_pred = alae.discriminator(x_fake)
 
-        return loss_r
+        real_pred = alae.discriminator(x_real)
 
+        loss_d = discriminator_logistic_non_saturating(real_pred, fake_pred, bs=BATCH_SIZE)
 
-# DATA
-data_gen = create_data_set(data_directory=DATA_DIR, img_dim=4, batch_size=BATCH_SIZE*N_GPUS)
-if not N:  # this may be known in advance
-    N = sum(1 for _ in data_gen)
+        # Add the R1 term
+        if alae.γ > 0:
+            with tf.GradientTape() as r1_tape:
+                r1_tape.watch(x_real)
+                # 1. Get the discriminator output for real images
+                pred = alae.discriminator(x_real)
 
-EPOCHS = int(500000/(N*BATCH_SIZE)+1)
+            # 2. Calculate the gradients w.r.t to the real images.
+            grads = r1_tape.gradient(pred, [x_real])[0]
 
-# Distribute data set
-data_gen = strategy.experimental_distribute_dataset(data_gen)
+            # 3. Calculate the squared norm of the gradients
+            r1_penalty = K.sum(K.square(grads))
+            loss_d += alae.γ / 2 * r1_penalty
 
+    gradients = tape.gradient(loss_d, alae.θ_E + alae.θ_D)
+    alae.optimizer_d.apply_gradients(zip(gradients, alae.θ_E + alae.θ_D))
+
+    # ----------------------------#
+    #  Step II - Update Generator #
+    # ----------------------------#
+
+    # samples from prior N(0, 1)
+    z = K.random_normal((batch_size, alae.z_dim))
+    # Compute loss and apply gradients
+    with tf.GradientTape() as tape:
+
+        fake_pred = alae.discriminator(alae.generator([z, noise, constant]))
+
+        loss_g = generator_logistic_non_saturating(fake_pred, bs=BATCH_SIZE)
+
+    gradients = tape.gradient(loss_g, alae.θ_F + alae.θ_G)
+    alae.optimizer_g.apply_gradients(zip(gradients, alae.θ_F + alae.θ_G))
+
+    # ------------------------------#
+    #  Step III - Update Reciprocal #
+    # ------------------------------#
+
+    # samples from prior N(0, 1)
+    z = K.random_normal((batch_size, alae.z_dim))
+    # Get w
+    w = alae.F(z)
+    # Compute loss and apply gradients
+    with tf.GradientTape() as tape:
+
+        w_pred = alae.reciprocal([w, noise, constant])
+
+        loss_r = l2(w, w_pred)
+
+    gradients = tape.gradient(loss_r, alae.θ_G + alae.θ_E)
+    alae.optimizer_r.apply_gradients(zip(gradients, alae.θ_G + alae.θ_E))
+
+    return {"loss_d": loss_d, "loss_g": loss_g, "loss_r": loss_r, "loss_gp": r1_penalty}
 
 @tf.function
-def distributed_train(batch):
-
-    d_loss = strategy.run(discriminator_train_step, args=(batch,))
-    g_loss = strategy.run(generator_train_step, args=(batch,))
-    r_loss = strategy.run(reciprocal_train_step, args=(batch,))
-
-    d_loss = strategy.reduce(tf.distribute.ReduceOp.MEAN, d_loss, axis=None)
-    g_loss = strategy.reduce(tf.distribute.ReduceOp.MEAN, g_loss, axis=None)
-    r_loss = strategy.reduce(tf.distribute.ReduceOp.MEAN, r_loss, axis=None)
-
-    return d_loss, g_loss, r_loss
+def distributed_train_step(dist_inputs):
+  per_replica_losses = strategy.run(train_step, args=(dist_inputs,))
+  return strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses, axis=None)
 
 
-# also change train() to use distributed_train instead of train_step
-def train(dataset, epochs):
-    for epoch in range(epochs):
-        print(epoch, "of", epochs)
-        for i, image_batch in enumerate(dataset):
-            d_loss, g_loss, r_loss = distributed_train(image_batch)
-            if i % 10 == 0:
-                print(d_loss.numpy(), g_loss.numpy(), r_loss.numpy())
+dist_dataset = strategy.experimental_distribute_dataset(data_gen)
 
-train(data_gen, EPOCHS)
 
+# TRAIN
+for dist_inputs in dist_dataset:
+  print(distributed_train_step(dist_inputs))

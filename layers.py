@@ -136,7 +136,9 @@ class Fade(Add):
     # init with default value
     def __init__(self, alpha=0.0, **kwargs):
         super(Fade, self).__init__(**kwargs)
-        self.alpha = tf.Variable(alpha, name='ws_alpha', dtype=tf.float32, aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA)
+        self.alpha = tf.Variable(alpha, name='ws_alpha',
+                                 dtype=tf.float32,
+                                 aggregation=tf.VariableAggregation.NONE)
 
     # output a weighted sum of inputs
     def _merge_function(self, inputs):
