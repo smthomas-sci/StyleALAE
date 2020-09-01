@@ -27,19 +27,25 @@ import logging
 tf.get_logger().setLevel(logging.ERROR)
 
 # USE TO TRACK MEMORY USAGE FOR DETERMINING BATCH SIZE
-gpu = tf.config.experimental.list_physical_devices("GPU")[0]
-tf.config.experimental.set_memory_growth(gpu, True)
+#gpu = tf.config.experimental.list_physical_devices("GPU")[0]
+#tf.config.experimental.set_memory_growth(gpu, True)
 # ----------------------------------------------------------- #
 
+# 6 OR 7 - 6 allows for GTX1050-ti
+os.environ["TF_MIN_GPU_MULTIPROCESSOR_COUNT"] = str(6)
+
+
+
+
 # PARAMETERS
-LEVELS = 6  # > 1
-WEIGHT_LEVEL = 5
+LEVELS = 2  # > 1
+WEIGHT_LEVEL = 1
 X_DIM = 2**(LEVELS+1)
 Z_DIM = 100
 F_N_LAYERS = 3
 D_N_LAYERS = 3
 BASE_FEATURES = 128
-BATCH_SIZE = 32
+BATCH_SIZE = 128
 ALPHA_STEP = None
 DATA_DIR = "/home/simon/PycharmProjects/StyleALAE/data/celeba-128"
 RUN_NAME = f"{X_DIM}x{X_DIM}_1"
@@ -86,10 +92,10 @@ with strategy.scope():
         # Load weights if pre-trained
         if b-1 == WEIGHT_LEVEL:
             DIM = 2**(WEIGHT_LEVEL+1)
-            F.load_weights(os.path.join(OLD_WEIGHT_DIR, f"F_{DIM}x{DIM}_weights_16.h5"))
-            G.load_weights(os.path.join(OLD_WEIGHT_DIR, f"G_{DIM}x{DIM}_weights_16.h5"))
-            E.load_weights(os.path.join(OLD_WEIGHT_DIR, f"E_{DIM}x{DIM}_weights_16.h5"))
-            D.load_weights(os.path.join(OLD_WEIGHT_DIR, f"D_{DIM}x{DIM}_weights_16.h5"))
+            F.load_weights(os.path.join(OLD_WEIGHT_DIR, f"F_{DIM}x{DIM}_weights.h5"))
+            G.load_weights(os.path.join(OLD_WEIGHT_DIR, f"G_{DIM}x{DIM}_weights.h5"))
+            E.load_weights(os.path.join(OLD_WEIGHT_DIR, f"E_{DIM}x{DIM}_weights.h5"))
+            D.load_weights(os.path.join(OLD_WEIGHT_DIR, f"D_{DIM}x{DIM}_weights.h5"))
 
         G, G_m = expand_generator(old_model=G, block=b,
                                   filters=FILTERS[b][1], z_dim=Z_DIM,
@@ -115,7 +121,7 @@ with strategy.scope():
     alae_m.compile(d_optimizer=Adam_D,
                  g_optimizer=Adam_G,
                  r_optimizer=Adam_R,
-                 γ=10,
+                 γ=0.1,
                  alpha_step=1/(EPOCHS*N))
 
     # Build straight models
@@ -133,7 +139,7 @@ with strategy.scope():
     alae_s.compile(d_optimizer=Adam_D,
                    g_optimizer=Adam_G,
                    r_optimizer=Adam_R,
-                   γ=10,
+                   γ=0.1,
                    alpha_step=None)
 
 
@@ -162,6 +168,19 @@ history_merge = alae_m.fit(x=data_gen,
                            callbacks=callbacks,
                            initial_epoch=0
                            )
+
+callbacks = [
+    Summary(log_dir=os.path.join(LOG_DIR, "straight"),
+            write_graph=False,
+            update_freq=50,  # every n batches
+            test_z=test_z,
+            test_batch=test_batch,
+            img_dir=IMG_DIR,
+            n=16,
+            weight_dir=WEIGHT_DIR
+                )
+]
+
 
 print("training straight model")
 history_straight = alae_s.fit(x=data_gen,

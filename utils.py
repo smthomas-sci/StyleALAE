@@ -9,6 +9,7 @@ Date: Jul-24-2020
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+import sys
 import skimage.io as io
 import yaml
 
@@ -48,6 +49,12 @@ class Summary(TensorBoard):
 
         self.save_weights(epoch)
 
+        # Reset metrics
+        self.model.d_loss_tracker.reset_states()
+        self.model.g_loss_tracker.reset_states()
+        self.model.r_loss_tracker.reset_states()
+        self.model.gp_loss_tracker.reset_states()
+
     def visualise_progress(self, z_test, test_batch, epoch, n):
         # Generate Random Samples
         samples = self.model.generator([z_test[:n]] + [test_batch[1][:n]] + [test_batch[2][:n]]).numpy()
@@ -71,13 +78,18 @@ class Summary(TensorBoard):
         plt.text(-0.8, 0.4, "Orig.", transform=ax[0, 0].transAxes)
         plt.text(-1, 0.4, "Recon.", transform=ax[1, 0].transAxes)
         plt.text(-1.1, 0.4, "Sample", transform=ax[2, 0].transAxes)
-        if self.model.merge:
+
+        # ------------------------------------------------------- #
+        print("DEBUG: Alpha = ", self.model.alpha, file=sys.stderr)
+        # ------------------------------------------------------- #
+
+        if self.model.fade:
             m = f" - alpha: {self.model.alpha:.3}"
         else:
             m = ""
         plt.text(0, 1.2, f"{dim}x{dim}: {epoch:04d}{m}", transform=ax[0, 0].transAxes)
 
-        if self.model.merge:
+        if self.model.fade:
             suffix = "_merge"
         else:
             suffix = ""
@@ -88,7 +100,7 @@ class Summary(TensorBoard):
         plt.close()
 
     def save_weights(self, epoch):
-        if self.model.merge:
+        if self.model.fade:
             suffix = "_merge_weights"
         else:
             suffix = "_weights"

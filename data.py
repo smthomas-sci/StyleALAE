@@ -41,12 +41,11 @@ def create_data_set(data_directory=None, file_names=None, img_dim=4, batch_size=
         image = tf.image.decode_jpeg(image)
         image = tf.image.convert_image_dtype(image, tf.float32)
         image = tf.image.resize(image, [img_dim, img_dim])
-        noise_image = tf.random.normal([img_dim, img_dim], mean=0, stddev=0.1)
+        noise_image = tf.random.normal([img_dim, img_dim], mean=0, stddev=1)
         constant = tf.ones([1])
         return image, noise_image, constant
 
     n = len(file_names)
-    seed = tf.constant([1234], dtype=tf.int64)
     ds = tf.data.Dataset.from_tensor_slices(file_names)
     ds = ds.shuffle(buffer_size=n, seed=1234, reshuffle_each_iteration=True)
     ds = ds.map(parse_image, num_parallel_calls=AUTOTUNE)
@@ -146,7 +145,7 @@ class DataGenerator(Sequence):
                 # Input Image
                 batch,
                 # Noise Image
-                np.random.normal(0, 0.1, (self.batch_size, self.target_dim, self.target_dim, 1)),
+                np.random.normal(0, 1, (self.batch_size, self.target_dim, self.target_dim, 1)),
 
                 # Constant input
                 np.ones((self.batch_size, 1, 1))

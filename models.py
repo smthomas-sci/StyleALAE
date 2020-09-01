@@ -8,6 +8,7 @@ Date: Jul-06-2020
 from StyleALAE.layers import *
 from StyleALAE.losses import *
 
+import sys
 
 def build_F(n_layers, z_dim, lrmul=0.01):
     """
@@ -112,7 +113,7 @@ class ALAE(Model):
         self.G = g_model
         self.E = e_model
         self.D = d_model
-        self.merge = merge
+        self.fade = merge
         self.levels = int(np.log2(self.x_dim/2))  # the number of blocks
 
         # Composite models
@@ -173,12 +174,12 @@ class ALAE(Model):
         self.optimizer_r = r_optimizer
         self.γ = γ
 
-        if self.merge:
+        if self.fade:
             self.alpha = 0
             self.alpha_step = alpha_step
-            self.G.get_layer("Fade_G").trainable = False
-            self.E.get_layer("Fade_E").trainable = False
-            self.E.get_layer("Fade_E_w").trainable = False
+            #self.G.get_layer("Fade_G").trainable = False
+            #self.E.get_layer("Fade_E").trainable = False
+            #self.E.get_layer("Fade_E_w").trainable = False
 
         # get trainable params
         self.θ_F = self.F.trainable_weights
@@ -186,7 +187,14 @@ class ALAE(Model):
         self.θ_E = self.E.trainable_weights
         self.θ_D = self.D.trainable_weights
 
+        # Create loss trackers
+        self.d_loss_tracker = tf.keras.metrics.Mean(name="loss_d")
+        self.g_loss_tracker = tf.keras.metrics.Mean(name="loss_g")
+        self.r_loss_tracker = tf.keras.metrics.Mean(name="loss_r")
+        self.gp_loss_tracker = tf.keras.metrics.Mean(name="loss_r1")
 
+
+    @tf.function
     def train_step(self, batch):
         """
         Custom training step - follows algorithm of ALAE e.g. Step I,II & III
@@ -199,11 +207,11 @@ class ALAE(Model):
             batch_size = 1
 
         # Update alphas on Fade
-        if self.merge:
+        if self.fade:
             self.alpha += self.alpha_step
-            self.G.get_layer("Fade_G").alpha.assign(self.alpha)
-            self.E.get_layer("Fade_E").alpha.assign(self.alpha)
-            self.E.get_layer("Fade_E_w").alpha.assign(self.alpha)
+            self.G.get_layer("Fade_G").alpha.assign_add(self.alpha_step)
+            self.E.get_layer("Fade_E").alpha.assign(self.alpha_step)
+            self.E.get_layer("Fade_E_w").alpha.assign(self.alpha_step)
 
         # -------------------------------#
         # Step I - Update Discriminator  #
@@ -212,8 +220,10 @@ class ALAE(Model):
         # Random mini-batch from data set
         x_real, noise, constant = batch
 
+        batch_size = tf.shape(x_real)[0]
+
         # samples from prior N(0, 1)
-        z = K.random_normal((batch_size, self.z_dim))
+        z = tf.random.normal(shape=(batch_size, self.z_dim))
         # generate fake images
         x_fake = self.generator([z, noise, constant])
 
@@ -238,7 +248,7 @@ class ALAE(Model):
                 grads = r1_tape.gradient(pred, [x_real])[0]
 
                 # 3. Calculate the squared norm of the gradients
-                r1_penalty = K.sum(K.square(grads))
+                r1_penalty = tf.reduce_sum(tf.square(grads))
                 loss_d += self.γ / 2 * r1_penalty
 
         gradients = tape.gradient(loss_d, self.θ_E + self.θ_D)
@@ -249,13 +259,13 @@ class ALAE(Model):
         # ----------------------------#
 
         # samples from prior N(0, 1)
-        z = K.random_normal((batch_size, self.z_dim))
+        z = tf.random.normal(shape=(batch_size, self.z_dim))
         # Compute loss and apply gradients
         with tf.GradientTape() as tape:
 
             fake_pred = self.discriminator(self.generator([z, noise, constant]))
 
-            loss_g = generator_logistic_non_saturating(fake_pred)
+            loss_g = generator_logistic_non_saturating(fake_pred, None)
 
         gradients = tape.gradient(loss_g, self.θ_F + self.θ_G)
         self.optimizer_g.apply_gradients(zip(gradients, self.θ_F + self.θ_G))
@@ -265,7 +275,7 @@ class ALAE(Model):
         # ------------------------------#
 
         # samples from prior N(0, 1)
-        z = K.random_normal((batch_size, self.z_dim))
+        z = tf.random.normal(shape=(batch_size, self.z_dim))
         # Get w
         w = self.F(z)
         # Compute loss and apply gradients
@@ -278,7 +288,18 @@ class ALAE(Model):
         gradients = tape.gradient(loss_r, self.θ_G + self.θ_E)
         self.optimizer_r.apply_gradients(zip(gradients, self.θ_G + self.θ_E))
 
-        return {"loss_d": loss_d, "loss_g": loss_g, "loss_r": loss_r, "loss_gp": r1_penalty}
+        if self.γ == 0:
+            r1_penalty = 0.0
+        # Update loss trackers
+        self.d_loss_tracker.update_state(loss_d)
+        self.g_loss_tracker.update_state(loss_g)
+        self.r_loss_tracker.update_state(loss_r)
+        self.gp_loss_tracker.update_state(r1_penalty)
+
+        return {"loss_d": self.d_loss_tracker.result(),
+                "loss_g": self.g_loss_tracker.result(),
+                "loss_r": self.r_loss_tracker.result(),
+                "loss_gp": self.gp_loss_tracker.result()}
 
     def call(self, inputs):
         return inputs

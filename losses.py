@@ -4,6 +4,7 @@ Losses for training an ALAE
 
 Author: Simon Thomas
 Date: Jul-06-2020
+Updated: Sep-01-2020
 
 """
 
@@ -11,31 +12,33 @@ import tensorflow as tf
 from tensorflow.keras.activations import softplus as f
 
 
+# tf.nn.compute_average_loss(loss, global_batch_size=bs)
+
 class L2(tf.keras.losses.Loss):
     def __init__(self):
-        super(L2).__init__(reduction=tf.keras.losses.Reduction.NONE)
+        super(L2, self).__init__(reduction=tf.keras.losses.Reduction.NONE, name="l2")
 
-    def call(self, y_true, y_pred, bs=None):
-        return tf.nn.compute_average_loss((y_true - y_pred) ** 2, global_batch_size=bs)
+    def call(self, y_true, y_pred):
+        loss = (y_true - y_pred) ** 2
+        return loss
 
 
 class DNS(tf.keras.losses.Loss):
     def __init__(self):
-        super(DNS).__init__(reduction=tf.keras.losses.Reduction.NONE)
+        super(DNS, self).__init__(reduction=tf.keras.losses.Reduction.NONE, name="dns")
 
-    def call(self, d_real, d_fake, bs=None):
+    def call(self, d_real, d_fake):
         loss = f(-d_real) + f(d_fake)
-
-        return tf.nn.compute_average_loss(loss, global_batch_size=bs)
+        return loss
 
 
 class GNS(tf.keras.losses.Loss):
     def __init__(self):
-        super(GNS).__init__(reduction=tf.keras.losses.Reduction.NONE)
+        super(GNS, self).__init__(reduction=tf.keras.losses.Reduction.NONE, name="gns")
 
-    def call(self, g_result, bs=None):
+    def call(self, g_result, y_pred):
         loss = f(-g_result)
-        return tf.nn.compute_average_loss(loss, global_batch_size=bs)
+        return loss
 
 # Create losses
 l2 = L2()
