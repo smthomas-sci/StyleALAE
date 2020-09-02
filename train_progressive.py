@@ -28,7 +28,7 @@ args = parser.parse_args()
 # -------------------------------------------------------------------------------------------------------------------- #
 
 # 6 OR 7 - 6 allows for GTX1050-ti
-os.environ["TF_MIN_GPU_MULTIPROCESSOR_COUNT"] = str(6)
+#os.environ["TF_MIN_GPU_MULTIPROCESSOR_COUNT"] = str(6)
 
 # CONFIG
 config = ConfigParser(args.config)
@@ -160,10 +160,10 @@ for level in range(1, LEVELS + 1):
                                         z_dim=Z_DIM)
 
             # RESUME TRAINING AT THIS LEVEL?
-            #if RESUME_LEVEL:
-            #    if level < RESUME_LEVEL:
-            #        print(f"...skipping training at level {level} - {X_DIM}x{X_DIM}")
-            #        continue
+            if RESUME_LEVEL:
+               if level < RESUME_LEVEL:
+                   print(f"...skipping training at level {level} - {X_DIM}x{X_DIM}")
+                   continue
 
             # Expansion finished
             # Build merge model

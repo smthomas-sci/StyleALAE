@@ -16,7 +16,7 @@ z_dim: 100
 F_layers: 3
 D_layers: 3
 base_features: 128
-batch_sizes: [ 128, 128, 128, 64, 32, 16 ]
+batch_sizes: [ 32, 32, 32, 16, 16, 8 ]
 gammas: [ 0.1, 0.1, 0.1, 0.1, 0.1, 0.1 ]
 
 # data set size and k-iterations
