@@ -27,6 +27,9 @@ parser.add_argument('--config',
 args = parser.parse_args()
 # -------------------------------------------------------------------------------------------------------------------- #
 
+# 6 OR 7 - 6 allows for GTX1050-ti
+os.environ["TF_MIN_GPU_MULTIPROCESSOR_COUNT"] = str(6)
+
 # CONFIG
 config = ConfigParser(args.config)
 
@@ -77,6 +80,8 @@ tf.get_logger().setLevel(logging.ERROR)
 
 for level in range(1, LEVELS + 1):
 
+    K.clear_session()
+
     # TIME RUN
     start = datetime.datetime.now()
 
@@ -95,103 +100,109 @@ for level in range(1, LEVELS + 1):
     test_z = tf.random.normal((16, Z_DIM), seed=1)
     test_batch = get_test_batch(data_gen)
 
-    # ------------------ BUILD MODEL ------------------- #
-    K.clear_session()
-    # MODELS
-    F = build_F(F_N_LAYERS, Z_DIM)
-    G = build_base_generator(z_dim=Z_DIM, base_features=BASE_FEATURES, block_type=BLOCK_TYPE)
-    E = build_base_encoder(z_dim=Z_DIM, filters=FILTERS[1])
-    D = build_D(D_N_LAYERS, Z_DIM)
+    # Create Strategy
+    strategy = tf.distribute.MirroredStrategy()
+    print('Number of devices: {}'.format(strategy.num_replicas_in_sync))
+    # Everything that creates variables should be under the strategy scope.
+    with strategy.scope():
 
-    # Expand models as needed
-    models = []
-    if level == 1:
-        # Build composite model
-        alae = ALAE(x_dim=X_DIM,
-                    z_dim=Z_DIM,
-                    f_model=F,
-                    g_model=G,
-                    e_model=E,
-                    d_model=D,
-                    merge=False)
+        # ------------------ BUILD MODEL ------------------- #
+        #K.clear_session()
+        # MODELS
+        F = build_F(F_N_LAYERS, Z_DIM)
+        G = build_base_generator(z_dim=Z_DIM, base_features=BASE_FEATURES, block_type=BLOCK_TYPE)
+        E = build_base_encoder(z_dim=Z_DIM, filters=FILTERS[1])
+        D = build_D(D_N_LAYERS, Z_DIM)
 
-        # Optimizers
-        Adam_D, Adam_G, Adam_R = create_optimizers(α=ALPHA, β1=0.0, β2=0.99)
+        # Expand models as needed
+        models = []
+        if level == 1:
+            # Build composite model
+            alae = ALAE(x_dim=X_DIM,
+                        z_dim=Z_DIM,
+                        f_model=F,
+                        g_model=G,
+                        e_model=E,
+                        d_model=D,
+                        merge=False)
 
-        alae.compile(d_optimizer=Adam_D,
-                     g_optimizer=Adam_G,
-                     r_optimizer=Adam_R,
-                     γ=GAMMAS[level - 1],
-                     alpha_step=None)
+            # Optimizers
+            Adam_D, Adam_G, Adam_R = create_optimizers(α=ALPHA, β1=0.0, β2=0.99)
 
-        models.append(alae)
+            alae.compile(d_optimizer=Adam_D,
+                         g_optimizer=Adam_G,
+                         r_optimizer=Adam_R,
+                         γ=GAMMAS[level - 1],
+                         alpha_step=None)
 
-    else:  # level > 1
-        WEIGHT_LEVEL = level - 1
-        OLD_DIM = X_DIM // 2
-        OLD_WEIGHT_DIR = os.path.join(WEIGHT_DIR, f"{OLD_DIM}x{OLD_DIM}")
+            models.append(alae)
+        # --------------------------------------------------------------------------------------------- #
+        else:  # level > 1
+            WEIGHT_LEVEL = level - 1
+            OLD_DIM = X_DIM // 2
+            OLD_WEIGHT_DIR = os.path.join(WEIGHT_DIR, f"{OLD_DIM}x{OLD_DIM}")
 
-        for b in range(2, level + 1):
-            # Load weights if pre-trained
-            if b - 1 == WEIGHT_LEVEL:
-                F.load_weights(os.path.join(OLD_WEIGHT_DIR, f"F_{OLD_DIM}x{OLD_DIM}_weights.h5"))
-                G.load_weights(os.path.join(OLD_WEIGHT_DIR, f"G_{OLD_DIM}x{OLD_DIM}_weights.h5"))
-                E.load_weights(os.path.join(OLD_WEIGHT_DIR, f"E_{OLD_DIM}x{OLD_DIM}_weights.h5"))
-                D.load_weights(os.path.join(OLD_WEIGHT_DIR, f"D_{OLD_DIM}x{OLD_DIM}_weights.h5"))
+            for b in range(2, level + 1):
+                # Load weights if pre-trained
+                if b - 1 == WEIGHT_LEVEL:
+                    F.load_weights(os.path.join(OLD_WEIGHT_DIR, f"F_{OLD_DIM}x{OLD_DIM}_weights.h5"))
+                    G.load_weights(os.path.join(OLD_WEIGHT_DIR, f"G_{OLD_DIM}x{OLD_DIM}_weights.h5"))
+                    E.load_weights(os.path.join(OLD_WEIGHT_DIR, f"E_{OLD_DIM}x{OLD_DIM}_weights.h5"))
+                    D.load_weights(os.path.join(OLD_WEIGHT_DIR, f"D_{OLD_DIM}x{OLD_DIM}_weights.h5"))
 
-            G, G_m = expand_generator(old_model=G, block=b,
-                                      filters=FILTERS[b][1], z_dim=Z_DIM,
-                                      noise_dim=2 ** (b + 1), block_type=BLOCK_TYPE)
+                G, G_m = expand_generator(old_model=G, block=b,
+                                          filters=FILTERS[b][1], z_dim=Z_DIM,
+                                          noise_dim=2 ** (b + 1), block_type=BLOCK_TYPE)
 
-            E, E_m = expand_encoder(old_model=E,
-                                    filters=FILTERS[b],
-                                    block=b,
-                                    z_dim=Z_DIM)
+                E, E_m = expand_encoder(old_model=E,
+                                        filters=FILTERS[b],
+                                        block=b,
+                                        z_dim=Z_DIM)
 
-        # RESUME TRAINING AT THIS LEVEL?
-        if RESUME_LEVEL:
-            if level < RESUME_LEVEL:
-                print(f"...skipping training at level {level} - {X_DIM}x{X_DIM}")
-                continue
+            # RESUME TRAINING AT THIS LEVEL?
+            #if RESUME_LEVEL:
+            #    if level < RESUME_LEVEL:
+            #        print(f"...skipping training at level {level} - {X_DIM}x{X_DIM}")
+            #        continue
 
-        # Expansion finished
-        # Build merge model
-        alae_m = ALAE(x_dim=X_DIM,
-                      z_dim=Z_DIM,
-                      f_model=F,
-                      g_model=G_m,
-                      e_model=E_m,
-                      d_model=D,
-                      merge=True)
+            # Expansion finished
+            # Build merge model
+            alae_m = ALAE(x_dim=X_DIM,
+                          z_dim=Z_DIM,
+                          f_model=F,
+                          g_model=G_m,
+                          e_model=E_m,
+                          d_model=D,
+                          merge=True)
 
-        # Optimizers
-        Adam_D, Adam_G, Adam_R = create_optimizers(α=ALPHA, β1=0.0, β2=0.99)
+            # Optimizers
+            Adam_D, Adam_G, Adam_R = create_optimizers(α=ALPHA, β1=0.0, β2=0.99)
 
-        alae_m.compile(d_optimizer=Adam_D,
-                       g_optimizer=Adam_G,
-                       r_optimizer=Adam_R,
-                       γ=GAMMAS[level - 1],
-                       alpha_step=1 / (EPOCHS * N))
+            alae_m.compile(d_optimizer=Adam_D,
+                           g_optimizer=Adam_G,
+                           r_optimizer=Adam_R,
+                           γ=GAMMAS[level - 1],
+                           alpha_step=1 / (EPOCHS * N))
 
-        # Build straight model
-        alae_s = ALAE(x_dim=X_DIM,
-                      z_dim=Z_DIM,
-                      f_model=F,
-                      g_model=G,
-                      e_model=E,
-                      d_model=D,
-                      merge=False)
+            # Build straight model
+            alae_s = ALAE(x_dim=X_DIM,
+                          z_dim=Z_DIM,
+                          f_model=F,
+                          g_model=G,
+                          e_model=E,
+                          d_model=D,
+                          merge=False)
 
-        # Optimizers
-        Adam_D, Adam_G, Adam_R = create_optimizers(α=ALPHA, β1=0.0, β2=0.99)
+            # Optimizers
+            Adam_D, Adam_G, Adam_R = create_optimizers(α=ALPHA, β1=0.0, β2=0.99)
 
-        alae_s.compile(d_optimizer=Adam_D,
-                       g_optimizer=Adam_G,
-                       r_optimizer=Adam_R,
-                       γ=GAMMAS[level - 1],
-                       alpha_step=None)
+            alae_s.compile(d_optimizer=Adam_D,
+                           g_optimizer=Adam_G,
+                           r_optimizer=Adam_R,
+                           γ=GAMMAS[level - 1],
+                           alpha_step=None)
 
-        models.extend([alae_m, alae_s])
+            models.extend([alae_m, alae_s])
 
     # Train models
     for m, alae in enumerate(models):

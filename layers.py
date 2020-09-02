@@ -141,6 +141,7 @@ class Fade(Add):
                                  trainable=False,
                                  dtype=tf.float32,
                                  aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA,
+                                 synchronization=tf.VariableSynchronization.ON_READ
                                  )
 
     # output a weighted sum of inputs

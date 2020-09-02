@@ -175,11 +175,7 @@ class ALAE(Model):
         self.γ = γ
 
         if self.fade:
-            self.alpha = 0
             self.alpha_step = alpha_step
-            #self.G.get_layer("Fade_G").trainable = False
-            #self.E.get_layer("Fade_E").trainable = False
-            #self.E.get_layer("Fade_E_w").trainable = False
 
         # get trainable params
         self.θ_F = self.F.trainable_weights
@@ -194,7 +190,6 @@ class ALAE(Model):
         self.gp_loss_tracker = tf.keras.metrics.Mean(name="loss_r1")
 
 
-    @tf.function
     def train_step(self, batch):
         """
         Custom training step - follows algorithm of ALAE e.g. Step I,II & III
@@ -208,10 +203,9 @@ class ALAE(Model):
 
         # Update alphas on Fade
         if self.fade:
-            self.alpha += self.alpha_step
             self.G.get_layer("Fade_G").alpha.assign_add(self.alpha_step)
-            self.E.get_layer("Fade_E").alpha.assign(self.alpha_step)
-            self.E.get_layer("Fade_E_w").alpha.assign(self.alpha_step)
+            self.E.get_layer("Fade_E").alpha.assign_add(self.alpha_step)
+            self.E.get_layer("Fade_E_w").alpha.assign_add(self.alpha_step)
 
         # -------------------------------#
         # Step I - Update Discriminator  #

@@ -18,8 +18,10 @@ D_layers: 3
 base_features: 128
 batch_sizes: [ 128, 128, 128, 64, 32, 16 ]
 gammas: [ 0.1, 0.1, 0.1, 0.1, 0.1, 0.1 ]
+
+# data set size and k-iterations
 n: 30_000
-k_images: 30_000
+k_images: 500_000
 
 # I/O
 data_dir: "/home/simon/PycharmProjects/StyleALAE/data/celeba-128"
