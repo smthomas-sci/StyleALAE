@@ -3,9 +3,9 @@ A simple training script
 
 """
 
-import matplotlib.pyplot as plt
 import os
-import pickle
+os.path.append("..")
+
 
 from StyleALAE.models import *
 from StyleALAE.optimizers import *
@@ -14,7 +14,7 @@ from StyleALAE.utils import Summary
 
 # 6 OR 7 - 6 allows for GTX1050-ti
 os.environ["TF_MIN_GPU_MULTIPROCESSOR_COUNT"] = str(6)
-
+os.path.append()
 
 # PARAMETERS
 X_DIM = 4

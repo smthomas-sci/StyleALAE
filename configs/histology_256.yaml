@@ -2,14 +2,16 @@
 
 # MODEL HYPER-PARAMETERS
 # filters is ordered such that [ E_in , E/G Filters]
-levels: 6
+levels: 7
 resume_level: NULL
 filters: { 1: [ 256, 512 ],
            2: [ 128, 256 ],
            3: [ 64,  128 ],
            4: [ 32,   64 ],
            5: [ 16,   32 ],
-           6: [ 16,   16 ] }
+           6: [ 16,   16 ],
+           7: [ 16,   16 ]
+}
 block_type: "AdaIn"
 alpha: 0.0015
 z_dim: 200

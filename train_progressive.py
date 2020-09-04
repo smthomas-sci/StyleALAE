@@ -28,7 +28,7 @@ args = parser.parse_args()
 # -------------------------------------------------------------------------------------------------------------------- #
 
 # 6 OR 7 - 6 allows for GTX1050-ti
-#os.environ["TF_MIN_GPU_MULTIPROCESSOR_COUNT"] = str(6)
+os.environ["TF_MIN_GPU_MULTIPROCESSOR_COUNT"] = str(6)
 
 # CONFIG
 config = ConfigParser(args.config)
@@ -182,7 +182,8 @@ for level in range(1, LEVELS + 1):
                            g_optimizer=Adam_G,
                            r_optimizer=Adam_R,
                            γ=GAMMAS[level - 1],
-                           alpha_step=1 / (EPOCHS * N))
+                           alpha_step=1 / ((N // BATCH_SIZES[level-1])*EPOCHS)
+                           )
 
             # Build straight model
             alae_s = ALAE(x_dim=X_DIM,

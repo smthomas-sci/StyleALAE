@@ -3,7 +3,7 @@
 # MODEL HYPER-PARAMETERS
 # filters is ordered such that [ E_in , E/G Filters]
 levels: 6
-resume_level: NULL
+resume_level: 2
 filters: { 1: [ 64, 64 ],
            2: [ 64, 64 ],
            3: [ 64, 64 ],
@@ -21,7 +21,7 @@ gammas: [ 0.1, 0.1, 0.1, 0.1, 0.1, 0.1 ]
 
 # data set size and k-iterations
 n: 30_000
-k_images: 500_000
+k_images: 200_000
 
 # I/O
 data_dir: "/home/simon/PycharmProjects/StyleALAE/data/celeba-128"
