@@ -66,7 +66,7 @@ for PATH in [RUN_DIR, LOG_DIR, OUT_DIR, WEIGHT_DIR, FID_DIR]:
         if PATH == "fid":
             os.mkdir(os.path.join(PATH, "real/"))
             os.mkdir(os.path.join(PATH, "fake/"))
-        elif PATH != RUN_DIR:
+        elif PATH != RUN_DIR or PATH != FID_DIR:
             # create run folders for each level
             for level in range(1, LEVELS + 1):
                 dim = 2 ** (level + 1)
@@ -107,7 +107,7 @@ for level in range(1, LEVELS + 1):
     with strategy.scope():
 
         # ------------------ BUILD MODEL ------------------- #
-        #K.clear_session()
+
         # MODELS
         F = build_F(F_N_LAYERS, Z_DIM)
         G = build_base_generator(z_dim=Z_DIM, base_features=BASE_FEATURES, block_type=BLOCK_TYPE)

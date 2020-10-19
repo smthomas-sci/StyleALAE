@@ -115,11 +115,12 @@ class ExponentialMovingAverage(Callback):
     """
     Inspired by # https://gist.github.com/soheilb/c5bf0ba7197caa095acfcb69744df756
     """
-    def __init__(self,  weight_dir, fid_dir, save_images=False, decay=0.999):
+    def __init__(self,  weight_dir, fid_dir, save_images=False, k=10_000, decay=0.999):
         self.weight_dir = weight_dir
         self.fid_dir = fid_dir
         self.decay = decay
         self.save_images = save_images
+        self.k = k
         super(ExponentialMovingAverage, self).__init__()
 
     def on_train_begin(self, logs={}):
@@ -153,18 +154,26 @@ class ExponentialMovingAverage(Callback):
         self.model.F.save_weights(f"{self.weight_dir}/F_{DIM}x{DIM}_ema.h5")
         self.model.G.save_weights(f"{self.weight_dir}/G_{DIM}x{DIM}_ema.h5")
 
+        # Epoch Output directory
+        output_dir = os.path.join(self.fid_dir, f"EPOCH_{epoch}")
+        if not os.path.exists(output_dir):
+            os.mkdir(output_dir)
+
         # Predict stuff
         if self.save_images:
-            tf.random.set_seed(1234)
-            z = tf.random.normal((16, self.model.z_dim), seed=1)
-            noise = tf.random.normal((16, self.model.x_dim, self.model.x_dim, 1))
-            constant = tf.ones((16, 1))
-            print("Making predictions...")
-            preds = self.model.generator([z, noise, constant]).numpy()
-            for i, pred in enumerate(preds):
-                img = (np.clip(pred, 0, 1)*255.).astype("uint8")
-                fname = os.path.join(self.fid_dir, f"{DIM}x{DIM}_{i:04}.png")
-                io.imsave(fname, img)
+            noise = tf.random.normal((10, self.model.x_dim, self.model.x_dim, 1))
+            constant = tf.ones((10, 1))
+            print("Generating Images for FID...")
+            progress = tf.keras.utils.Progbar(self.k // 10)
+            count = 0
+            for step in range(self.k // 10):
+                z = tf.random.normal((10, self.model.z_dim), seed=1)
+                preds = (self.model.generator([z, noise, constant]).numpy().clip(0, 1)*255.).astype("uint8")
+                for pred in preds:
+                    fname = os.path.join(output_dir, f"{DIM}x{DIM}_{count:04}.png")
+                    io.imsave(fname, pred)
+                    count += 1
+                progress.update(step)
 
         print("Reloading original weights for next epoch")
         # Reload original weights
