@@ -151,7 +151,7 @@ with strategy.scope():
                  alpha_step=None)
 
 m = "fine_tune"
-EPOCHS = 200
+EPOCHS = 300
 
 callbacks = [Summary(log_dir=os.path.join(LOG_DIR, f"{X_DIM}x{X_DIM}/{m}"),
                      write_graph=False,
