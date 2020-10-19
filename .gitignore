@@ -1,4 +1,3 @@
 /weights/inception_v3/variables/variables.data-00000-of-00001
 /weights/inception_v3/variables/variables.index
-/saved_model.pb
-/weights/FID_BCC/bcc_real_features_10K.npy
+/weights/inception_v3/saved_model.pb
