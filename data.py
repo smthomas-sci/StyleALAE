@@ -171,6 +171,50 @@ class DataGenerator(Sequence):
         return result
 
 
+def create_patch_generator(filename, dim, scale=True):
+    """
+    Creates a multi-patch generator from a whole image.
+    used concept projection.
+    """
+    # Load Image
+    print("reading in", filename, "...")
+    image = io.imread(filename) / 255.
+
+    # Scale to 2x reduction
+    if scale:
+        image = resize(image, (image.shape[0] // 2, image.shape[1] // 2))
+
+    # Pad Image
+    row_add = dim - (image.shape[0] % dim)
+    col_add = dim - (image.shape[1] % dim)
+    image_padded = np.pad(image, ([0, row_add], [0, col_add], [0, 0]), constant_values=[1])
+
+    print("Converting to tensorflow dataset")
+    # Convert to tensor
+    image_padded_tensor = tf.convert_to_tensor(image_padded)
+
+    def get_patch(index):
+        r = index[0]
+        c = index[1]
+        return image_padded_tensor[r * dim:r * dim + dim, c * dim:c * dim + dim]
+
+    # Get indices
+    n_rows = image_padded.shape[0] // dim
+    n_cols = image_padded.shape[1] // dim
+
+    indices = []
+    for r in range(n_rows):
+        for c in range(n_cols):
+            indices.append([r, c])
+    indices = np.array(indices)
+
+    # Create dataset
+    ds = tf.data.Dataset.from_tensor_slices((indices))
+    ds = ds.map(get_patch)
+    ds = ds.batch(12)
+    ds = ds.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+
+    return ds, (n_rows, n_cols)
 
 if __name__ == "__main__":
 
