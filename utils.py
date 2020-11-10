@@ -175,6 +175,8 @@ class ExponentialMovingAverage(Callback):
                     count += 1
                 progress.update(step)
 
+            # Actually need to do for real images
+            
         print("Reloading original weights for next epoch")
         # Reload original weights
         for weight in self.model.θ_F:

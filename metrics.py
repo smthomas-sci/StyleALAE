@@ -3,7 +3,7 @@ Metrics for determining the quality of generated and reconstructed images.
 
 Author: Simon Thomas
 Date: 28-07-2020
-Updated: 13-10-2020
+Updated: 10-11-2020
 
 """
 import numpy as np
@@ -14,7 +14,7 @@ from StyleALAE.data import *
 
 # FID
 # from tensorflow.keras.applications.inception_v3 import InceptionV3
-# from tensorflow.keras.applications.inception_v3 import preprocess_input as preprocess_input_iv3
+from tensorflow.keras.applications.inception_v3 import preprocess_input as preprocess_input_iv3
 import tensorflow_hub as tfhub
 
 # PPL
@@ -47,131 +47,6 @@ def _generator(path, k, model="iv3", batch_size=12):
             batch = tf.image.resize(batch, size)
         batch = preprocess_input(batch)
         yield np.expand_dims(batch, 0)
-
-class FID(object):
-    """
-    Calculate the FID score between two image distributions.
-
-    Inception V3 has 23M parameters and so likely won't fit in memory along side
-    the generative model. Ideally, generated images are saved to disk and FID
-    is run externally.
-
-    The workflow should be as follows:
-
-    1. Save k real images to disk
-    2. Run real images through InceptionV3 and create baseline score / save features
-       >>> fid = FID(real_path=REAL_DIR, fake_path=FAKE_DIR, k=10000)
-       >>> fid.get_real_features()
-       >>> fid.save_real_features(fname)
-    4. For each epoch at this image level e.g. 64x64, save k fake images to disk
-       >>> fid.get_fake_features()
-       >>> score = fid.score()
-
-
-    Weights are NOT from tf.keras.applications.inceptionv3. Rather, it
-    is taken from
-
-    The images are load in range [0, 1], and so are preprocessed according
-    to https://github.com/tensorflow/models/blob/33c61588cabda85598fbfbdce0d0329bbe42b4a4/research/slim/preprocessing/inception_preprocessing.py#L304
-
-    Very close to the original which shares the same weights, adapted from
-    https://tfhub.dev/tensorflow/tfgan/eval/inception/1'
-
-    """
-    def __init__(self, real_path, fake_path, k=10000, batch_size=10):
-        """
-        Build a self-container model and scorer for FID.
-        :param real_path: the path to directory of real images
-        :param fake_path: the path to directory of fake images
-        :param k: how many images to use to calculate score
-        """
-        self.k = k
-        self.batch_size = batch_size
-        self.n_batches = self.k // self.batch_size
-        self.real_gen = create_data_set(data_directory=real_path, img_dim=299, batch_size=self.batch_size, style=False)
-        self.fake_gen = create_data_set(data_directory=fake_path, img_dim=299, batch_size=self.batch_size, style=False)
-        self.model = tfhub.load("./StyleALAE/weights/inception_v3")
-
-    def get_features(self, images):
-        output = self.model(images)["pool_3"]
-        return tf.reshape(output, (images.shape[0], 2048))
-
-    def get_real_features(self, path=None):
-        print("Loading real features...")
-        if path:
-            self.real = np.load(path)
-        else:
-            progress = tf.keras.utils.Progbar(self.n_batches)
-            self.real = np.empty((self.k, 2048))
-            for i, image in enumerate(self.real_gen):
-                image = tf.subtract(image, 0.5)
-                image = tf.multiply(image, 2.0)
-                self.real[i*self.batch_size:i*self.batch_size+self.batch_size] = self.get_features(image)
-                progress.update(i)
-                if i == self.n_batches:
-                    break
-            progress.update(i, finalize=True)
-
-    def get_fake_features(self):
-        print("Loading fake features...")
-        progress = tf.keras.utils.Progbar(self.n_batches)
-        self.fake = np.empty((self.k, 2048))
-        for i, image in enumerate(self.fake_gen):
-            image = tf.subtract(image, 0.5)
-            image = tf.multiply(image, 2.0)
-            self.fake[i*self.batch_size:i*self.batch_size+self.batch_size] = self.get_features(image)
-            progress.update(i)
-            if i == self.n_batches:
-                break
-        progress.update(i, finalize=True)
-
-    def save_real_features(self, fname):
-        print("saving real features...")
-        np.save(fname, self.real)
-
-    def calculate_fid(self, feat1, feat2):
-        # calculate mean and covariance statistics
-        mu1, sigma1 = np.mean(feat1, axis=0), np.cov(feat1, rowvar=False)
-        mu2, sigma2 = np.mean(feat2, axis=0), np.cov(feat2, rowvar=False)
-
-        diff = mu1 - mu2
-
-#         # CUSTOM
-#         # calculate sum squared difference between means
-#         ssdiff = np.sum(np.square(mu1 - mu2))
-#         # calculate sqrt of product between cov - r.dot(r) = x & r = sqrt(x)
-#         covmean = sqrtm(sigma1.dot(sigma2))
-#         # check and correct imaginary numbers from sqrt
-#         if np.iscomplexobj(covmean):
-#             # keeps only the real components (numpy)
-#             covmean = covmean.real
-#         # calculate score
-#         fid = ssdiff + np.trace(sigma1 + sigma2 - 2.0 * covmean)
-#         return fid
-
-        # PAPER
-        # product might be almost singular
-        covmean, _ = sqrtm(sigma1.dot(sigma2), disp=False)
-        if not np.isfinite(covmean).all():
-            msg = "fid calculation produces singular product; adding %s to diagonal of cov estimates" % eps
-            warnings.warn(msg)
-            offset = np.eye(sigma1.shape[0]) * eps
-            covmean = sqrtm((sigma1 + offset).dot(sigma2 + offset))
-
-        # numerical error might give slight imaginary component
-        if np.iscomplexobj(covmean):
-            if not np.allclose(np.diagonal(covmean).imag, 0, atol=1e-3):
-                m = np.max(np.abs(covmean.imag))
-                raise ValueError("Imaginary component {}".format(m))
-        covmean = covmean.real
-
-        tr_covmean = np.trace(covmean)
-
-        return diff.dot(diff) + np.trace(sigma1) + np.trace(sigma2) - 2 * tr_covmean
-
-
-    def score(self):
-        return self.calculate_fid(self.real, self.fake)
 
 
 class PPL(object):
