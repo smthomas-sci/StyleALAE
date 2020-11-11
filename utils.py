@@ -115,7 +115,8 @@ class ExponentialMovingAverage(Callback):
     """
     Inspired by # https://gist.github.com/soheilb/c5bf0ba7197caa095acfcb69744df756
     """
-    def __init__(self,  weight_dir, fid_dir, save_images=False, k=10_000, decay=0.999):
+    def __init__(self,  generator, weight_dir, fid_dir, save_images=False, k=10_000, decay=0.999):
+        self.data = generator
         self.weight_dir = weight_dir
         self.fid_dir = fid_dir
         self.decay = decay
@@ -161,22 +162,18 @@ class ExponentialMovingAverage(Callback):
 
         # Predict stuff
         if self.save_images:
-            noise = tf.random.normal((10, self.model.x_dim, self.model.x_dim, 1))
-            constant = tf.ones((10, 1))
             print("Generating Images for FID...")
-            progress = tf.keras.utils.Progbar(self.k // 10)
+            progress = tf.keras.utils.Progbar(self.k)
             count = 0
-            for step in range(self.k // 10):
-                z = tf.random.normal((10, self.model.z_dim), seed=1)
-                preds = (self.model.generator([z, noise, constant]).numpy().clip(0, 1)*255.).astype("uint8")
+            while count < self.k:
+                x, noise, constant = next(self.data.as_numpy_iterator())
+                preds = (self.model.inference([x, noise, constant]).numpy().clip(0, 1)*255.).astype("uint8")
                 for pred in preds:
                     fname = os.path.join(output_dir, f"{DIM}x{DIM}_{count:04}.png")
                     io.imsave(fname, pred)
                     count += 1
-                progress.update(step)
+                    progress.update(count)
 
-            # Actually need to do for real images
-            
         print("Reloading original weights for next epoch")
         # Reload original weights
         for weight in self.model.θ_F:
