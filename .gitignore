@@ -1,3 +1,1 @@
-/weights/inception_v3/variables/variables.data-00000-of-00001
-/weights/inception_v3/variables/variables.index
-/weights/inception_v3/saved_model.pb
+/weights/inception_v3/variables/classify_image_graph_def.pd
