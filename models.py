@@ -105,7 +105,7 @@ class ALAE(Model):
     An Adversarial Latent Autoencoder Model (ALAE), self-contained for
     training at each block size.
     """
-    def __init__(self, x_dim, z_dim, f_model, g_model, e_model, d_model, merge):
+    def __init__(self, x_dim, z_dim, f_model, g_model, e_model, d_model, merge, style_mix_step=16):
         super(ALAE, self).__init__()
         self.z_dim = z_dim
         self.x_dim = x_dim
@@ -115,6 +115,7 @@ class ALAE(Model):
         self.D = d_model
         self.fade = merge
         self.levels = int(np.log2(self.x_dim/2))  # the number of blocks
+        self.style_mix_step = style_mix_step
 
         # Composite models
         self.discriminator = self.build_discriminator()
@@ -189,6 +190,31 @@ class ALAE(Model):
         self.r_loss_tracker = tf.keras.metrics.Mean(name="loss_r")
         self.gp_loss_tracker = tf.keras.metrics.Mean(name="loss_r1")
 
+        # Create internal step tracker
+        self.step = 0
+
+    def style_mixing_regularization(self, batch_size, noise, constant):
+        # Reset step
+        self.step *= 0
+
+        # samples from prior N(0, 1)
+        z1 = tf.random.normal(shape=(batch_size, self.z_dim))
+        z2 = tf.random.normal(shape=(batch_size, self.z_dim))
+
+        # Get ws
+        w1 = self.F(z1)
+        w2 = self.F(z2)
+
+        # Get random position
+        pos = tf.random.uniform(shape=[], minval=0, maxval=self.levels, dtype="int32")
+
+        # Compute loss and apply gradients
+        with tf.GradientTape() as tape:
+            x = self.G([w1]*pos + [w2]*((self.levels-1) - pos) + [noise, constant])
+            fake_pred = self.discriminator(x)
+            loss_g_style_mix = generator_logistic_non_saturating(fake_pred, None)
+        gradients = tape.gradient(loss_g_style_mix, self.θ_F + self.θ_G)
+        self.optimizer_g.apply_gradients(zip(gradients, self.θ_F + self.θ_G))
 
     def train_step(self, batch):
         """
@@ -264,6 +290,13 @@ class ALAE(Model):
         gradients = tape.gradient(loss_g, self.θ_F + self.θ_G)
         self.optimizer_g.apply_gradients(zip(gradients, self.θ_F + self.θ_G))
 
+        # -------  Style Mixing ------- #
+        self.step += 1
+        if self.step % self.style_mix_step == 0:
+            print("Style mixxing...")
+            self.style_mixing_regularization(batch_size, noise, constant)
+        # ------------------------------#
+
         # ------------------------------#
         #  Step III - Update Reciprocal #
         # ------------------------------#
@@ -298,6 +331,8 @@ class ALAE(Model):
     def call(self, inputs):
         return inputs
 
-
+    @property
+    def metrics(self):
+        return [self.d_loss_tracker, self.g_loss_tracker, self.r_loss_tracker, self.gp_loss_tracker]
 
 

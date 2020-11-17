@@ -546,7 +546,8 @@ def calculate_fid_given_paths(real_path, fake_path, inception_path, low_profile=
 
     # Save statistics if new
     if ".npz" not in real_path:
-        output_path = os.path.join(os.path.abspath("."), "stats/real_statistics.npz")
+        #output_path = os.path.join(os.path.dirname(__name__), "stats/real_statistics.npz")
+        output_path = "/home/simon/PycharmProjects/StyleALAE/StyleALAE/stats/real_statistics.npz"
         print("Saving real statistics:", output_path)
         np.savez_compressed(output_path, mu=m1, sigma=s1)
 
@@ -576,3 +577,5 @@ if __name__ == "__main__":
 
     fid_value = calculate_fid_given_paths(args.real, args.fake, inception_path)
     print("FID: ", fid_value)
+
+    print("\n"*20)

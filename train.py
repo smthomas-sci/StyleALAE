@@ -4,7 +4,7 @@ A simple training script
 """
 
 import os
-os.path.append("..")
+#os.path.append("..")
 
 
 from StyleALAE.models import *
@@ -14,7 +14,7 @@ from StyleALAE.utils import Summary
 
 # 6 OR 7 - 6 allows for GTX1050-ti
 os.environ["TF_MIN_GPU_MULTIPROCESSOR_COUNT"] = str(6)
-os.path.append()
+#os.path.append()
 
 # PARAMETERS
 X_DIM = 4
@@ -41,7 +41,7 @@ data_gen = create_data_set(data_directory=DATA_DIR, img_dim=4, batch_size=128)
 if not N:  # this may be known in advance
     N = sum(1 for _ in data_gen)
 
-EPOCHS = int(500000/(N*BATCH_SIZE)+1)
+EPOCHS = 64 #int(500000/(N*BATCH_SIZE)+1)
 
 # --- MULTI-GPU TRAINING --- #
 strategy = tf.distribute.MirroredStrategy()
@@ -94,6 +94,8 @@ history = alae.fit(x=data_gen,
                    epochs=EPOCHS,
                    callbacks=callbacks
                    )
+
+print(history.history)
 
 
 
