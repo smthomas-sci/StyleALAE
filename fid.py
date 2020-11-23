@@ -576,6 +576,6 @@ if __name__ == "__main__":
     print("Loading model from:", inception_path)
 
     fid_value = calculate_fid_given_paths(args.real, args.fake, inception_path)
-    print("FID: ", fid_value)
+    print("FID: " + str(fid_value))
 
     print("\n"*20)

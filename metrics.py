@@ -216,16 +216,15 @@ if __name__ == "__main__":
     gen = tf.keras.models.Model(inputs=[gen_in], outputs=[gen_out])
     # ---------------------------------------------------- #
 
-    N = 4
+    N = 100_000
     progress = tf.keras.utils.Progbar(N)
     ppl = PPL(generator=gen)
-
 
     distances = []
     for i in range(N):
         progress.update(i)
 
-        zs = ppl.get_latent_interpolations(space="z", z_dim=49, e=0.1)
+        zs = ppl.get_latent_interpolations(space="w", z_dim=49, e=10e-2)
 
         d = ppl.compute_distance_sum(zs)
 
@@ -240,7 +239,7 @@ if __name__ == "__main__":
     for i in range(N):
         progress.update(i)
 
-        zs = ppl.get_latent_interpolations(space="z", z_dim=49)
+        zs = ppl.get_latent_interpolations(space="w", z_dim=49)
 
         d = ppl.compute_distance_sum([zs[0], zs[-1]])
 

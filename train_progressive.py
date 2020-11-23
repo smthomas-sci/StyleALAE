@@ -13,6 +13,8 @@ import pickle
 import logging
 import datetime
 
+#os.path.append("..")
+
 from StyleALAE.models import *
 from StyleALAE.optimizers import *
 from StyleALAE.data import *
@@ -22,7 +24,7 @@ from StyleALAE.utils import *
 parser = argparse.ArgumentParser(description='Train progressive StyleALAE')
 parser.add_argument('--config',
                     type=str,
-                    default="/home/simon/PycharmProjects/StyleALAE/StyleALAE/configs/celeba_hq_256.yaml",
+                    default="/home/simon/PycharmProjects/StyleALAE/StyleALAE/configs/scc_64.yaml",
                     help='full path and filename to yaml config file')
 args = parser.parse_args()
 # -------------------------------------------------------------------------------------------------------------------- #
@@ -136,11 +138,19 @@ for level in range(1, LEVELS + 1):
                          alpha_step=None)
 
             models.append(alae)
+
+            # RESUME TRAINING AT THIS LEVEL?
+            if RESUME_LEVEL:
+                if level < RESUME_LEVEL:
+                    print(f"...skipping training at level {level} - {X_DIM}x{X_DIM}")
+                    continue
+                    
         # --------------------------------------------------------------------------------------------- #
         else:  # level > 1
             WEIGHT_LEVEL = level - 1
             OLD_DIM = X_DIM // 2
             OLD_WEIGHT_DIR = os.path.join(WEIGHT_DIR, f"{OLD_DIM}x{OLD_DIM}")
+            OLD_WEIGHT_DIR = os.path.join(OLD_WEIGHT_DIR, "Epoch_-01")
 
             for b in range(2, level + 1):
                 # Load weights if pre-trained

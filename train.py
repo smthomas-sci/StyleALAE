@@ -95,7 +95,6 @@ history = alae.fit(x=data_gen,
                    callbacks=callbacks
                    )
 
-print(history.history)
 
 
 

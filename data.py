@@ -173,8 +173,11 @@ class DataGenerator(Sequence):
 
 def create_patch_generator(filename, dim, scale=True):
     """
-    Creates a multi-patch generator from a whole image.
-    used concept projection.
+    Creates a multi-patch generator from a whole image. This makes
+    processing whole images much more efficient.
+
+    Note: It does NOT use overlapping patches, but rather pads the image so
+          that even size patches can be sampled.
     """
     # Load Image
     print("reading in", filename, "...")

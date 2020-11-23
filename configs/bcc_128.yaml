@@ -1,0 +1,30 @@
+# CONFIG FILE FOR bcc_epi_256 dataset - grown to 128x128
+
+# MODEL HYPER-PARAMETERS
+# filters is ordered such that [ E_in , E/G Filters]
+levels: 6
+resume_level: 6
+base_features: 512
+filters: { 1: [ 512, 512 ],
+           2: [ 512, 512 ],
+           3: [ 512, 512 ],
+           4: [ 256, 512 ],
+           5: [ 128, 256 ],
+           6: [ 64,  128 ],
+           }
+block_type: "AdaIn"
+z_dim: 512
+F_layers: 8
+D_layers: 3
+batch_sizes: [ 512, 256, 128, 128, 128, 64 ]
+gammas: [ 0.1, 0.1, 0.1, 0.1, 10, 10 ]
+alpha: 0.0010
+n: 53_586
+k_images: 800_000
+
+# I/O
+data_dir: "/scratch/imb/Simon/Generative/BCC_train"
+run_dir: "/scratch/imb/Simon/Generative/Run_BCC_12x128_r3"
+
+
+

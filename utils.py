@@ -9,13 +9,19 @@ Date: Jul-24-2020
 import numpy as np
 import matplotlib.pyplot as plt
 import os
-import sys
+
 import skimage.io as io
 import yaml
 
 import tensorflow as tf
+
+from skimage.transform import resize
+
 from tensorflow.keras.callbacks import TensorBoard, Callback
 from tensorflow.keras import backend as K
+
+from scipy.spatial.distance import cdist
+from lapjv import lapjv
 
 
 class Summary(TensorBoard):
@@ -23,7 +29,7 @@ class Summary(TensorBoard):
     A standard tensorboard call back but includes
     a visualisation call at the end of each epoch
     """
-    def __init__(self, test_z, test_batch, img_dir, n, weight_dir, **kwargs):
+    def __init__(self, test_z, test_batch, img_dir, n, weight_dir, save_all_weights=False, **kwargs):
         """
         :param log_dir - the log directory (including the run name),
         :param write_graph - include the graph?
@@ -41,6 +47,7 @@ class Summary(TensorBoard):
         self.img_dir = img_dir
         self.n = n
         self.weight_dir = weight_dir
+        self.save_all = save_all_weights
 
     def on_epoch_end(self, epoch, logs=None):
         super().on_epoch_end(epoch, logs)
@@ -97,18 +104,25 @@ class Summary(TensorBoard):
         plt.close()
 
     def save_weights(self, epoch):
+        if not self.save_all:
+            epoch = -1
+
         if self.model.fade:
             suffix = "_merge_weights"
         else:
             suffix = "_weights"
 
+        out_dir = os.path.join(self.weight_dir, f"Epoch_{epoch:03d}")
+        if not os.path.exists(out_dir):
+            os.mkdir(out_dir)
+
         # Save weights and losses
         DIM = self.model.x_dim
-        self.model.G.save_weights(f"{self.weight_dir}/G_{DIM}x{DIM}{suffix}.h5")
-        self.model.E.save_weights(f"{self.weight_dir}/E_{DIM}x{DIM}{suffix}.h5")
-        self.model.F.save_weights(f"{self.weight_dir}/F_{DIM}x{DIM}{suffix}.h5")
-        self.model.D.save_weights(f"{self.weight_dir}/D_{DIM}x{DIM}{suffix}.h5")
-        print("Weights Saved.")
+        self.model.G.save_weights(os.path.join(out_dir, f"G_{DIM}x{DIM}{suffix}.h5"))
+        self.model.E.save_weights(os.path.join(out_dir, f"E_{DIM}x{DIM}{suffix}.h5"))
+        self.model.F.save_weights(os.path.join(out_dir, f"F_{DIM}x{DIM}{suffix}.h5"))
+        self.model.D.save_weights(os.path.join(out_dir, f"D_{DIM}x{DIM}{suffix}.h5"))
+        print("Weights Saved. - ", out_dir)
 
 
 class ExponentialMovingAverage(Callback):
@@ -169,7 +183,7 @@ class ExponentialMovingAverage(Callback):
                 x, noise, constant = next(self.data.as_numpy_iterator())
                 preds = (self.model.inference([x, noise, constant]).numpy().clip(0, 1)*255.).astype("uint8")
                 for pred in preds:
-                    fname = os.path.join(output_dir, f"{DIM}x{DIM}_{count:04}.png")
+                    fname = os.path.join(output_dir, f"{DIM}x{DIM}_{count:04}.jpg")
                     io.imsave(fname, pred)
                     count += 1
                     progress.update(count)
@@ -196,6 +210,25 @@ class ConfigParser(object):
 
     def __dir__(self):
         return list(self._config.keys())
+
+
+def save_2d_projection_grid(img_collection, X_2d, out_res, out_dim):
+    grid = np.dstack(np.meshgrid(np.linspace(0, 1, out_dim), np.linspace(0, 1, out_dim))).reshape(-1, 2)
+    cost_matrix = cdist(grid, X_2d, "sqeuclidean").astype(np.float32)
+    cost_matrix = cost_matrix * (100000 / cost_matrix.max())
+
+    print(cost_matrix.shape)
+    row_asses, col_asses, _ = lapjv(cost_matrix)
+    grid_jv = grid[col_asses]
+    out = np.ones((out_dim * out_res, out_dim * out_res, 3))
+
+    for pos, img in zip(grid_jv, img_collection[0:np.square(out_dim)]):
+        h_range = int(np.floor(pos[0] * (out_dim - 1) * out_res))
+        w_range = int(np.floor(pos[1] * (out_dim - 1) * out_res))
+        out[h_range:h_range + out_res, w_range:w_range + out_res] = img
+
+    return out
+
 
 
 if __name__ == "__main__":
